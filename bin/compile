@@ -1,41 +1,40 @@
-#!/usr/bin/env ruby
+#!/bin/bash
+set -euo pipefail
 
-# sync output
-$stdout.sync = true
+BUILD_DIR=$1
+CACHE_DIR=$2
+export BUILDPACK_DIR=`dirname $(readlink -f ${BASH_SOURCE%/*})`
 
-cache_dir = ARGV[1]
-buildpack_dir = File.join(File.dirname(__FILE__), '..')
-compile_extensions_dir = File.expand_path(File.join(buildpack_dir, 'compile-extensions'))
+GO_VERSION="1.7.5"
+GO_MD5="c9de5bb95790044de676301898e92a1b"
 
-exit(44) unless system("#{compile_extensions_dir}/bin/check_stack_support")
-system("#{compile_extensions_dir}/bin/check_buildpack_version #{buildpack_dir} #{cache_dir}")
+URL=https://buildpacks.cloudfoundry.org/dependencies/go/go${GO_VERSION}.linux-amd64-c9de5bb9.tar.gz
 
-$:.unshift File.expand_path("../../lib", __FILE__)
-require "language_pack"
-require "language_pack/shell_helpers"
+echo "-----> Download go ${GO_VERSION}"
+curl -s -L --retry 15 --retry-delay 2 $URL -o /tmp/go.tar.gz
 
-require 'cloud_foundry/language_pack/extensions'
+DOWNLOAD_MD5=$(md5sum /tmp/go.tar.gz | cut -d ' ' -f 1)
 
-begin
-  LanguagePack::Instrument.trace 'compile', 'app.compile' do
-    LanguagePack::ShellHelpers.initialize_env(ARGV[2])
-    if pack = LanguagePack.detect(ARGV[0], ARGV[1])
-      pack.topic("Compiling #{pack.name}")
-      pack.log("compile") do
-        pack.compile
-      end
-    end
-    system("#{compile_extensions_dir}/bin/store_buildpack_metadata #{buildpack_dir} #{cache_dir}")
-  end
-rescue Exception => e
-  Kernel.puts " !"
-  e.message.split("\n").each do |line|
-    Kernel.puts " !     #{line.strip}"
-  end
-  Kernel.puts " !"
-  if e.is_a?(BuildpackError)
-    exit 1
-  else
-    raise e
-  end
-end
+if [[ $DOWNLOAD_MD5 != $GO_MD5 ]]; then
+  echo "       **ERROR** MD5 mismatch: got $DOWNLOAD_MD5 expected $GO_MD5"
+  exit 1
+fi
+
+tar xzf /tmp/go.tar.gz -C /tmp
+
+export GOROOT=/tmp/go
+export GOPATH=$BUILDPACK_DIR
+
+if [ -f $GOROOT/bin/go ]; then
+  echo "-----> Running go build compile"
+  output_dir=$(mktemp -d -t compileXXX)
+  $GOROOT/bin/go build -o $output_dir/compile compile
+else
+  echo "       **ERROR** Could not download go"
+  exit 1
+fi
+
+unset GOROOT
+unset GOPATH
+
+$output_dir/compile $BUILD_DIR $CACHE_DIR
