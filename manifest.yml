@@ -3,27 +3,6 @@ language: ruby
 default_versions:
 - name: ruby
   version: 2.3.4
-- name: yarn
-  version: 0.22.0
-url_to_dependency_map:
-- match: ruby-(.*?)-jruby-(.*?)\.tgz
-  name: jruby
-  version: ruby-$1-jruby-$2
-- match: ruby-(\d+\.\d+\.\d+)
-  name: ruby
-  version: "$1"
-- match: bundler-(\d+\.\d+\.\d+)
-  name: bundler
-  version: "$1"
-- match: openjdk1.8-latest
-  name: openjdk1.8-latest
-  version: 1.8.0_121
-- match: node-v(\d+\.\d+\.\d+)
-  name: node
-  version: "$1"
-- match: yarn-v(\d+\.\d+\.\d+)
-  name: yarn
-  version: "$1"
 dependency_deprecation_dates:
 - match: 4\.\d+\.\d+
   version_line: '4'
